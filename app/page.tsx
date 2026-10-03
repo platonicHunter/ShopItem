@@ -1,31 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Percent, Filter, Tag } from "lucide-react";
-import { calculateInterest } from "@/lib/util";
+import { useEffect, useState } from "react";
+import { Search, Percent, Filter, Tag, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import { Category, Item } from "@/types";
 
-const INITIAL_CATEGORIES: Category[] = [
-  { id: "1", name: "Groceries" },
-  { id: "2", name: "Electronics" },
-];
-
-const INITIAL_ITEMS: Item[] = [
-  { id: "101", name: "Apple", basePrice: 1.5, categoryId: "1" },
-  { id: "102", name: "USB Cable", basePrice: 10.0, categoryId: "2" },
-];
-
 export default function Home() {
-  const [categories] = useState<Category[]>(INITIAL_CATEGORIES);
-  const [items] = useState<Item[]>(INITIAL_ITEMS);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
-  const [interestRate, setInterestRate] = useState<number>(5);
+  const [interestRate, setInterestRate] = useState<number>(10);
 
+  // Supabase မှ Categories နှင့် Items များ ခေါ်ယူခြင်း
+  const fetchData = async () => {
+    setLoading(true);
+    const { data: catData } = await supabase.from("categories").select("*");
+    const { data: itemData } = await supabase.from("items").select("*");
+
+    if (catData) setCategories(catData);
+    if (itemData) setItems(itemData);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  // အတိုး (%) တွက်ချက်သည့် function
+  const calculateFinalPrice = (basePrice: number, rate: number) => {
+    return basePrice + (basePrice * rate) / 100;
+  };
+
+  // Search & Category Filter ပြုလုပ်ခြင်း
   const filteredItems = items.filter((item) => {
     const matchesCategory =
-      selectedCategory === "ALL" || item.categoryId === selectedCategory;
+      selectedCategory === "ALL" || item.category_id === selectedCategory;
     const matchesSearch = item.name
       .toLowerCase()
       .includes(searchQuery.toLowerCase());
@@ -35,7 +47,8 @@ export default function Home() {
   return (
     <main className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+        {/* Header Section */}
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
               ဈေးနှုန်းကြည့်ရန်
@@ -59,6 +72,7 @@ export default function Home() {
           </div>
         </header>
 
+        {/* Filter Controls */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
@@ -71,7 +85,7 @@ export default function Home() {
             />
           </div>
 
-          <div className="relative min-w-[160px]">
+          <div className="relative min-w-[180px]">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
             <select
               value={selectedCategory}
@@ -88,56 +102,69 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredItems.map((item) => {
-            const finalPrice = calculateInterest(item.basePrice, interestRate);
-            const categoryName = categories.find(
-              (c) => c.id === item.categoryId,
-            )?.name;
+        {/* Items Grid */}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredItems.map((item) => {
+              const finalPrice = calculateFinalPrice(
+                item.base_price,
+                interestRate,
+              );
+              const categoryName = categories.find(
+                (c) => c.id === item.category_id,
+              )?.name;
 
-            return (
-              <div
-                key={item.id}
-                className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow space-y-3"
-              >
-                <div className="flex justify-between items-start">
-                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">
-                    {item.name}
-                  </h3>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
-                    <Tag className="w-3 h-3" />
-                    {categoryName || "Uncategorized"}
-                  </span>
-                </div>
+              return (
+                <div
+                  key={item.id}
+                  className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow space-y-3"
+                >
+                  <div className="flex justify-between items-start">
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">
+                      {item.name}
+                    </h3>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full">
+                      <Tag className="w-3 h-3" />
+                      {categoryName || "Uncategorized"}
+                    </span>
+                  </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-end">
-                  <div>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      မူရင်းဈေး
-                    </p>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 line-through">
-                      ${item.basePrice.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                      {interestRate}% တိုးပြီးဈေး
-                    </p>
-                    <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
-                      ${finalPrice.toFixed(2)}
-                    </p>
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-end">
+                    <div>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        မူရင်းဈေး
+                      </p>
+                      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 line-through">
+                        ${item.base_price.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                        {interestRate}% တိုးပြီးဈေး
+                      </p>
+                      <p className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                        ${finalPrice.toFixed(2)}{" "}
+                        <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                          / 1 {item.unit}
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
+              );
+            })}
+
+            {filteredItems.length === 0 && (
+              <div className="col-span-full text-center py-12 text-slate-400 dark:text-slate-500 text-sm">
+                ရှာဖွေမှုနှင့် ကိုက်ညီသော ပစ္စည်းမရှိပါ။
               </div>
-            );
-          })}
-
-          {filteredItems.length === 0 && (
-            <div className="col-span-full text-center py-12 text-slate-400 dark:text-slate-500 text-sm">
-              ရှာဖွေမှုနှင့် ကိုက်ညီသော ပစ္စည်းမရှိပါ။
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );

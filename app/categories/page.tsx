@@ -1,35 +1,64 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Trash2, Edit2, Tag } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Trash2, Edit2, Tag, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import { Category } from "@/types";
 
 export default function CategoryCrudPage() {
-  const [categories, setCategories] = useState<Category[]>([
-    { id: "1", name: "Groceries" },
-    { id: "2", name: "Electronics" },
-  ]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [inputName, setInputName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // 1. Database မှ Categories များ ခေါ်ယူခြင်း (Read)
+  const fetchCategories = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching categories:", error);
+    } else if (data) {
+      setCategories(data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  // 2. Category သစ်ထည့်ခြင်း သို့မဟုတ် ပြင်ဆင်ခြင်း (Create / Update)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputName.trim()) return;
 
     if (editingId) {
-      setCategories((prev) =>
-        prev.map((cat) =>
-          cat.id === editingId ? { ...cat, name: inputName } : cat,
-        ),
-      );
-      setEditingId(null);
+      // Update
+      const { error } = await supabase
+        .from("categories")
+        .update({ name: inputName })
+        .eq("id", editingId);
+
+      if (!error) {
+        setEditingId(null);
+        setInputName("");
+        fetchCategories();
+      }
     } else {
-      setCategories((prev) => [
-        ...prev,
-        { id: Date.now().toString(), name: inputName },
-      ]);
+      // Create
+      const { error } = await supabase
+        .from("categories")
+        .insert([{ name: inputName }]);
+
+      if (!error) {
+        setInputName("");
+        fetchCategories();
+      }
     }
-    setInputName("");
   };
 
   const handleEdit = (category: Category) => {
@@ -37,8 +66,12 @@ export default function CategoryCrudPage() {
     setInputName(category.name);
   };
 
-  const handleDelete = (id: string) => {
-    setCategories((prev) => prev.filter((cat) => cat.id !== id));
+  // 3. Category ဖျက်ခြင်း (Delete)
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("categories").delete().eq("id", id);
+    if (!error) {
+      fetchCategories();
+    }
   };
 
   return (
@@ -54,43 +87,58 @@ export default function CategoryCrudPage() {
             placeholder="Category အမည်အသစ်..."
             value={inputName}
             onChange={(e) => setInputName(e.target.value)}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           />
           <button
             type="submit"
-            className="flex items-center gap-1 px-4 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white font-medium rounded-xl text-sm hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors"
+            className="flex items-center gap-1 px-4 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white font-medium rounded-xl text-sm hover:bg-indigo-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             {editingId ? "ပြင်ဆင်မည်" : "သိမ်းမည်"}
           </button>
         </form>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden shadow-sm">
-          {categories.map((cat) => (
-            <div key={cat.id} className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                <span className="font-medium text-slate-700 dark:text-slate-200">
-                  {cat.name}
-                </span>
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden shadow-sm">
+            {categories.map((cat) => (
+              <div
+                key={cat.id}
+                className="flex items-center justify-between p-4"
+              >
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    {cat.name}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(cat)}
+                    className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(cat.id)}
+                    className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleEdit(cat)}
-                  className="p-2 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(cat.id)}
-                  className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+            ))}
+
+            {categories.length === 0 && (
+              <div className="text-center py-8 text-slate-400 text-sm">
+                Category မရှိသေးပါ။ အထက်ပါ form တွင် ထည့်သွင်းပါ။
               </div>
-            </div>
-          ))}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );
