@@ -1,14 +1,17 @@
 import type { NextConfig } from "next";
+import withPWAInit from "@ducanh2912/next-pwa";
+
+const withPWA = withPWAInit({
+  dest: "public",
+  disable: process.env.NODE_ENV === "development",
+});
 
 const nextConfig: NextConfig = {
-  // async rewrites() {
-  //   return [
-  //     {
-  //       source: "/supabase-api/:path*",
-  //       destination: "https://utfuuvdutmcmmipxwkdx.supabase.co/:path*",
-  //     },
-  //   ];
-  // },
+  // Turbopack warning/error ကို ကျော်ရန် empty object သတ်မှတ်ပေးပါ
+  experimental: {
+    // လိုအပ်ပါက အခြား experimental options များ
+  },
+  turbopack: {},
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);
