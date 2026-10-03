@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Edit2, Tag, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Category } from "@/types";
 
@@ -11,7 +12,7 @@ export default function CategoryCrudPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 1. Database မှ Categories များ ခေါ်ယူခြင်း (Read)
+  // 1. Fetch Categories
   const fetchCategories = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -20,7 +21,7 @@ export default function CategoryCrudPage() {
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("Error fetching categories:", error);
+      toast.error("Categories ခေါ်ယူရာတွင် အမှားအယွင်းရှိနေပါသည်");
     } else if (data) {
       setCategories(data);
     }
@@ -31,10 +32,14 @@ export default function CategoryCrudPage() {
     fetchCategories();
   }, []);
 
-  // 2. Category သစ်ထည့်ခြင်း သို့မဟုတ် ပြင်ဆင်ခြင်း (Create / Update)
+  // 2. Submit Category
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputName.trim()) return;
+
+    if (!inputName.trim()) {
+      toast.warning("ကျေးဇူးပြု၍ Category အမည် ထည့်သွင်းပါ");
+      return;
+    }
 
     if (editingId) {
       // Update
@@ -43,7 +48,10 @@ export default function CategoryCrudPage() {
         .update({ name: inputName })
         .eq("id", editingId);
 
-      if (!error) {
+      if (error) {
+        toast.error("Category ပြင်ဆင်၍ မရပါ: " + error.message);
+      } else {
+        toast.success("Category ကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ");
         setEditingId(null);
         setInputName("");
         fetchCategories();
@@ -54,7 +62,10 @@ export default function CategoryCrudPage() {
         .from("categories")
         .insert([{ name: inputName }]);
 
-      if (!error) {
+      if (error) {
+        toast.error("Category ထည့်သွင်း၍ မရပါ: " + error.message);
+      } else {
+        toast.success("Category သစ်ကို အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ");
         setInputName("");
         fetchCategories();
       }
@@ -66,10 +77,15 @@ export default function CategoryCrudPage() {
     setInputName(category.name);
   };
 
-  // 3. Category ဖျက်ခြင်း (Delete)
+  // 3. Delete Category
   const handleDelete = async (id: string) => {
+    if (!confirm("ဒီ Category ကို ဖျက်ရန် သေချာပါသလား?")) return;
+
     const { error } = await supabase.from("categories").delete().eq("id", id);
-    if (!error) {
+    if (error) {
+      toast.error("Category ဖျက်၍ မရပါ: " + error.message);
+    } else {
+      toast.success("Category ကို ဖျက်ပြီးပါပြီ");
       fetchCategories();
     }
   };

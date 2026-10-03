@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Edit2, Package, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Category, Item } from "@/types";
 
@@ -18,11 +19,17 @@ export default function ItemCrudPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const { data: catData } = await supabase.from("categories").select("*");
-    const { data: itemData } = await supabase
+    const { data: catData, error: catErr } = await supabase
+      .from("categories")
+      .select("*");
+    const { data: itemData, error: itemErr } = await supabase
       .from("items")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (catErr || itemErr) {
+      toast.error("Data ခေါ်ယူရာတွင် အမှားအယွင်းရှိနေပါသည်");
+    }
 
     if (catData) setCategories(catData);
     if (itemData) setItems(itemData);
@@ -35,7 +42,20 @@ export default function ItemCrudPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !basePrice || !categoryId || !unit) return;
+
+    // Validations with Sonner Toast
+    if (!name.trim()) {
+      toast.warning("ကျေးဇူးပြု၍ ပစ္စည်းအမည် ထည့်သွင်းပါ");
+      return;
+    }
+    if (!basePrice || parseFloat(basePrice) <= 0) {
+      toast.warning("ကျေးဇူးပြု၍ မှန်ကန်သော မူရင်းဈေးနှုန်း ထည့်သွင်းပါ");
+      return;
+    }
+    if (!categoryId) {
+      toast.warning("ကျေးဇူးပြု၍ Category အမျိုးအစား ရွေးချယ်ပေးပါ");
+      return;
+    }
 
     const payload = {
       name,
@@ -50,15 +70,20 @@ export default function ItemCrudPage() {
         .update(payload)
         .eq("id", editingId);
 
-      if (!error) {
-        setEditingId(null);
+      if (error) {
+        toast.error("ပစ္စည်းအချက်အလက် ပြင်ဆင်၍ မရပါ: " + error.message);
+      } else {
+        toast.success("ပစ္စည်းအချက်အလက်ကို အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ");
         resetForm();
         fetchData();
       }
     } else {
       const { error } = await supabase.from("items").insert([payload]);
 
-      if (!error) {
+      if (error) {
+        toast.error("ပစ္စည်းအသစ် ထည့်သွင်း၍ မရပါ: " + error.message);
+      } else {
+        toast.success("ပစ္စည်းအသစ်ကို အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ");
         resetForm();
         fetchData();
       }
@@ -70,6 +95,7 @@ export default function ItemCrudPage() {
     setBasePrice("");
     setUnit("ခု");
     setCategoryId("");
+    setEditingId(null);
   };
 
   const handleEdit = (item: Item) => {
@@ -81,8 +107,15 @@ export default function ItemCrudPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("ဒီပစ္စည်းကို ဖျက်ရန် သေချာပါသလား?")) return;
+
     const { error } = await supabase.from("items").delete().eq("id", id);
-    if (!error) fetchData();
+    if (error) {
+      toast.error("ပစ္စည်း ဖျက်၍ မရပါ: " + error.message);
+    } else {
+      toast.success("ပစ္စည်းကို ဖျက်ပြီးပါပြီ");
+      fetchData();
+    }
   };
 
   return (
@@ -130,9 +163,13 @@ export default function ItemCrudPage() {
             <select
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className={`px-3 py-2 rounded-xl border bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${
+                !categoryId
+                  ? "border-amber-400 dark:border-amber-500"
+                  : "border-slate-200 dark:border-slate-800"
+              }`}
             >
-              <option value="">Category ရွေးရန်</option>
+              <option value="">-- Category ရွေးရန် --</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -141,13 +178,24 @@ export default function ItemCrudPage() {
             </select>
           </div>
 
-          <button
-            type="submit"
-            className="w-full py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white font-medium rounded-xl text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1"
-          >
-            <Plus className="w-4 h-4" />
-            {editingId ? "ပြင်ဆင်ချက် သိမ်းမည်" : "ပစ္စည်းအသစ် ထည့်မည်"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="flex-1 py-2.5 bg-indigo-600 dark:bg-indigo-500 text-white font-medium rounded-xl text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1"
+            >
+              <Plus className="w-4 h-4" />
+              {editingId ? "ပြင်ဆင်ချက် သိမ်းမည်" : "ပစ္စည်းအသစ် ထည့်မည်"}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium rounded-xl text-sm hover:bg-slate-200 transition-colors"
+              >
+                မလုပ်တော့ပါ
+              </button>
+            )}
+          </div>
         </form>
 
         {loading ? (
@@ -188,6 +236,12 @@ export default function ItemCrudPage() {
                 </div>
               </div>
             ))}
+
+            {items.length === 0 && (
+              <div className="text-center py-8 text-slate-400 text-sm">
+                ပစ္စည်း မရှိသေးပါ။ အထက်ပါ form တွင် ထည့်သွင်းပါ။
+              </div>
+            )}
           </div>
         )}
       </div>
