@@ -8,3 +8,6 @@
 // const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Supabase မသုံးတော့ဘဲ Vercel Postgres သို့ ပြောင်းထားသဖြင့် Build Error အဟန့်အတား မဖြစ်စေရန် Dummy Export လုပ်ထားခြင်းဖြစ်ပါသည်။
+export const supabase = null as any;
